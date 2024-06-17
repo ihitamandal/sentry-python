@@ -118,7 +118,9 @@ else:
 
 def frame_id(raw_frame):
     # type: (FrameType) -> FrameId
-    return (raw_frame.f_code.co_filename, raw_frame.f_lineno, get_frame_name(raw_frame))
+    filename = raw_frame.f_code.co_filename
+    lineno = raw_frame.f_lineno
+    return filename, lineno, get_frame_name(raw_frame)
 
 
 def extract_frame(fid, raw_frame, cwd):
