@@ -44,11 +44,9 @@ if TYPE_CHECKING:
         Iterator,
         List,
         NoReturn,
-        Optional,
         overload,
         ParamSpec,
         Set,
-        Tuple,
         Type,
         TypeVar,
         Union,
@@ -1128,49 +1126,50 @@ def parse_version(version):
     # type: (str) -> Optional[Tuple[int, ...]]
     """
     Parses a version string into a tuple of integers.
-    This uses the parsing loging from PEP 440:
+    This uses the parsing logic from PEP 440:
     https://peps.python.org/pep-0440/#appendix-b-parsing-version-strings-with-regular-expressions
     """
-    VERSION_PATTERN = r"""  # noqa: N806
-        v?
-        (?:
-            (?:(?P<epoch>[0-9]+)!)?                           # epoch
-            (?P<release>[0-9]+(?:\.[0-9]+)*)                  # release segment
-            (?P<pre>                                          # pre-release
-                [-_\.]?
-                (?P<pre_l>(a|b|c|rc|alpha|beta|pre|preview))
-                [-_\.]?
-                (?P<pre_n>[0-9]+)?
-            )?
-            (?P<post>                                         # post release
-                (?:-(?P<post_n1>[0-9]+))
-                |
-                (?:
+    _VERSION_PATTERN = re.compile(
+        r"""
+            ^\s*
+            v?
+            (?:
+                (?:(\d+)!)?                                   # epoch
+                (\d+(?:\.\d+)*)                               # release segment
+                (?:                                           # pre-release
                     [-_\.]?
-                    (?P<post_l>post|rev|r)
+                    (a|b|c|rc|alpha|beta|pre|preview)
                     [-_\.]?
-                    (?P<post_n2>[0-9]+)?
-                )
-            )?
-            (?P<dev>                                          # dev release
-                [-_\.]?
-                (?P<dev_l>dev)
-                [-_\.]?
-                (?P<dev_n>[0-9]+)?
-            )?
-        )
-        (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
-    """
-
-    pattern = re.compile(
-        r"^\s*" + VERSION_PATTERN + r"\s*$",
+                    (\d+)?
+                )?
+                (?:                                           # post release
+                    (?:-(\d+))
+                    |
+                    (?:[-_\.]?post[-_\.]?(\d+)?)
+                    |
+                    (?:[-_\.]?rev[-_\.]?(\d+)?)
+                    |
+                    (?:[-_\.]?r[-_\.]?(\d+)?)
+                )?
+                (?:                                           # dev release
+                    [-_\.]?dev[-_\.]?(\d+)?
+                )?
+            )
+            (?:\+([a-z0-9]+(?:[-_\.][a-z0-9]+)*))?            # local version
+            \s*$
+        """,
         re.VERBOSE | re.IGNORECASE,
     )
 
+    match = _VERSION_PATTERN.match(version)
+
+    if not match:
+        return None
+
     try:
-        release = pattern.match(version).groupdict()["release"]  # type: ignore
+        release = match.group(2)
         release_tuple = tuple(map(int, release.split(".")[:3]))  # type: Tuple[int, ...]
-    except (TypeError, ValueError, AttributeError):
+    except (ValueError, AttributeError):
         return None
 
     return release_tuple
