@@ -17,6 +17,8 @@ from decimal import Decimal
 from functools import partial, partialmethod, wraps
 from numbers import Real
 from urllib.parse import parse_qs, unquote, urlencode, urlsplit, urlunsplit
+from builtins import BaseExceptionGroup
+from sentry_sdk.consts import DEFAULT_MAX_VALUE_LENGTH
 
 try:
     # Python 3.11
@@ -679,38 +681,35 @@ def single_exception_from_error_tuple(
     See the Exception Interface documentation for more details:
     https://develop.sentry.dev/sdk/event-payloads/exception/
     """
-    exception_value = {}  # type: Dict[str, Any]
-    exception_value["mechanism"] = (
-        mechanism.copy() if mechanism else {"type": "generic", "handled": True}
-    )
+    exception_value = {
+        "mechanism": mechanism.copy()
+        if mechanism
+        else {"type": "generic", "handled": True}
+    }
+
     if exception_id is not None:
         exception_value["mechanism"]["exception_id"] = exception_id
 
     if exc_value is not None:
         errno = get_errno(exc_value)
-    else:
-        errno = None
-
-    if errno is not None:
-        exception_value["mechanism"].setdefault("meta", {}).setdefault(
-            "errno", {}
-        ).setdefault("number", errno)
+        if errno is not None:
+            exception_value["mechanism"].setdefault("meta", {}).setdefault(
+                "errno", {}
+            ).setdefault("number", errno)
 
     if source is not None:
         exception_value["mechanism"]["source"] = source
 
     is_root_exception = exception_id == 0
-    if not is_root_exception and parent_id is not None:
-        exception_value["mechanism"]["parent_id"] = parent_id
+    if not is_root_exception:
+        if parent_id is not None:
+            exception_value["mechanism"]["parent_id"] = parent_id
         exception_value["mechanism"]["type"] = "chained"
 
-    if is_root_exception and "type" not in exception_value["mechanism"]:
+    elif "type" not in exception_value["mechanism"]:
         exception_value["mechanism"]["type"] = "generic"
 
-    is_exception_group = BaseExceptionGroup is not None and isinstance(
-        exc_value, BaseExceptionGroup
-    )
-    if is_exception_group:
+    if BaseExceptionGroup is not None and isinstance(exc_value, BaseExceptionGroup):
         exception_value["mechanism"]["is_exception_group"] = True
 
     exception_value["module"] = get_type_module(exc_type)
@@ -818,66 +817,50 @@ def exceptions_from_error(
     parent_id = exception_id
     exception_id += 1
 
-    should_supress_context = hasattr(exc_value, "__suppress_context__") and exc_value.__suppress_context__  # type: ignore
-    if should_supress_context:
-        # Add direct cause.
-        # The field `__cause__` is set when raised with the exception (using the `from` keyword).
-        exception_has_cause = (
-            exc_value
-            and hasattr(exc_value, "__cause__")
-            and exc_value.__cause__ is not None
-        )
-        if exception_has_cause:
-            cause = exc_value.__cause__  # type: ignore
-            (exception_id, child_exceptions) = exceptions_from_error(
-                exc_type=type(cause),
-                exc_value=cause,
-                tb=getattr(cause, "__traceback__", None),
-                client_options=client_options,
-                mechanism=mechanism,
-                exception_id=exception_id,
-                source="__cause__",
-            )
-            exceptions.extend(child_exceptions)
+    if exc_value is not None:
+        should_suppress_context = getattr(exc_value, "__suppress_context__", False)
+        if should_suppress_context:
+            cause = getattr(exc_value, "__cause__", None)
+            if cause is not None:
+                exception_id, child_exceptions = exceptions_from_error(
+                    exc_type=type(cause),
+                    exc_value=cause,
+                    tb=getattr(cause, "__traceback__", None),
+                    client_options=client_options,
+                    mechanism=mechanism,
+                    exception_id=exception_id,
+                    source="__cause__",
+                )
+                exceptions.extend(child_exceptions)
+        else:
+            context = getattr(exc_value, "__context__", None)
+            if context is not None:
+                exception_id, child_exceptions = exceptions_from_error(
+                    exc_type=type(context),
+                    exc_value=context,
+                    tb=getattr(context, "__traceback__", None),
+                    client_options=client_options,
+                    mechanism=mechanism,
+                    exception_id=exception_id,
+                    source="__context__",
+                )
+                exceptions.extend(child_exceptions)
 
-    else:
-        # Add indirect cause.
-        # The field `__context__` is assigned if another exception occurs while handling the exception.
-        exception_has_content = (
-            exc_value
-            and hasattr(exc_value, "__context__")
-            and exc_value.__context__ is not None
-        )
-        if exception_has_content:
-            context = exc_value.__context__  # type: ignore
-            (exception_id, child_exceptions) = exceptions_from_error(
-                exc_type=type(context),
-                exc_value=context,
-                tb=getattr(context, "__traceback__", None),
-                client_options=client_options,
-                mechanism=mechanism,
-                exception_id=exception_id,
-                source="__context__",
-            )
-            exceptions.extend(child_exceptions)
+        if hasattr(exc_value, "exceptions"):
+            for idx, e in enumerate(exc_value.exceptions):  # type: ignore
+                exception_id, child_exceptions = exceptions_from_error(
+                    exc_type=type(e),
+                    exc_value=e,
+                    tb=getattr(e, "__traceback__", None),
+                    client_options=client_options,
+                    mechanism=mechanism,
+                    exception_id=exception_id,
+                    parent_id=parent_id,
+                    source="exceptions[%s]" % idx,
+                )
+                exceptions.extend(child_exceptions)
 
-    # Add exceptions from an ExceptionGroup.
-    is_exception_group = exc_value and hasattr(exc_value, "exceptions")
-    if is_exception_group:
-        for idx, e in enumerate(exc_value.exceptions):  # type: ignore
-            (exception_id, child_exceptions) = exceptions_from_error(
-                exc_type=type(e),
-                exc_value=e,
-                tb=getattr(e, "__traceback__", None),
-                client_options=client_options,
-                mechanism=mechanism,
-                exception_id=exception_id,
-                parent_id=parent_id,
-                source="exceptions[%s]" % idx,
-            )
-            exceptions.extend(child_exceptions)
-
-    return (exception_id, exceptions)
+    return exception_id, exceptions
 
 
 def exceptions_from_error_tuple(
