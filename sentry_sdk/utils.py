@@ -1408,14 +1408,11 @@ def to_base64(original):
     """
     Convert a string to base64, via UTF-8. Returns None on invalid input.
     """
-    base64_string = None
-
     try:
-        utf8_bytes = original.encode("UTF-8")
-        base64_bytes = base64.b64encode(utf8_bytes)
-        base64_string = base64_bytes.decode("UTF-8")
+        base64_string = base64.b64encode(original.encode("UTF-8")).decode("UTF-8")
     except Exception as err:
-        logger.warning("Unable to encode {orig} to base64:".format(orig=original), err)
+        logger.warning("Unable to encode %s to base64: %s", original, err)
+        return None
 
     return base64_string
 
