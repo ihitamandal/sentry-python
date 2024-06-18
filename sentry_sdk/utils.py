@@ -338,14 +338,14 @@ class Auth:
         )
 
     def to_header(self):
-        # type: () -> str
         """Returns the auth header a string."""
         rv = [("sentry_key", self.public_key), ("sentry_version", self.version)]
         if self.client is not None:
             rv.append(("sentry_client", self.client))
         if self.secret_key is not None:
             rv.append(("sentry_secret", self.secret_key))
-        return "Sentry " + ", ".join("%s=%s" % (key, value) for key, value in rv)
+        # Using f-strings and list comprehension for better performance
+        return "Sentry " + ", ".join([f"{key}={value}" for key, value in rv])
 
 
 class AnnotatedValue:
