@@ -89,18 +89,12 @@ class LoggingIntegration(Integration):
 
         def sentry_patched_callhandlers(self, record):
             # type: (Any, LogRecord) -> Any
-            # keeping a local reference because the
-            # global might be discarded on shutdown
             ignored_loggers = _IGNORED_LOGGERS
 
             try:
                 return old_callhandlers(self, record)
             finally:
-                # This check is done twice, once also here before we even get
-                # the integration.  Otherwise we have a high chance of getting
-                # into a recursion error when the integration is resolved
-                # (this also is slower).
-                if ignored_loggers is not None and record.name not in ignored_loggers:
+                if not (ignored_loggers and record.name in ignored_loggers):
                     integration = sentry_sdk.get_client().get_integration(
                         LoggingIntegration
                     )
