@@ -16,7 +16,7 @@ from datetime import datetime
 from decimal import Decimal
 from functools import partial, partialmethod, wraps
 from numbers import Real
-from urllib.parse import parse_qs, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 try:
     # Python 3.11
@@ -1446,40 +1446,29 @@ Components = namedtuple("Components", ["scheme", "netloc", "path", "query", "fra
 
 
 def sanitize_url(url, remove_authority=True, remove_query_values=True, split=False):
-    # type: (str, bool, bool, bool) -> Union[str, Components]
     """
     Removes the authority and query parameter values from a given URL.
     """
     parsed_url = urlsplit(url)
     query_params = parse_qs(parsed_url.query, keep_blank_values=True)
 
-    # strip username:password (netloc can be usr:pwd@example.com)
+    netloc = parsed_url.netloc
     if remove_authority:
-        netloc_parts = parsed_url.netloc.split("@")
+        netloc_parts = netloc.split("@", 1)
         if len(netloc_parts) > 1:
-            netloc = "%s:%s@%s" % (
-                SENSITIVE_DATA_SUBSTITUTE,
-                SENSITIVE_DATA_SUBSTITUTE,
-                netloc_parts[-1],
-            )
-        else:
-            netloc = parsed_url.netloc
-    else:
-        netloc = parsed_url.netloc
+            netloc = f"{SENSITIVE_DATA_SUBSTITUTE}:{SENSITIVE_DATA_SUBSTITUTE}@{netloc_parts[-1]}"
 
-    # strip values from query string
+    query_string = parsed_url.query
     if remove_query_values:
-        query_string = unquote(
-            urlencode({key: SENSITIVE_DATA_SUBSTITUTE for key in query_params})
+        query_string = "&".join(
+            f"{key}={SENSITIVE_DATA_SUBSTITUTE}" for key in query_params
         )
-    else:
-        query_string = parsed_url.query
 
     components = Components(
         scheme=parsed_url.scheme,
         netloc=netloc,
-        query=query_string,
         path=parsed_url.path,
+        query=query_string,
         fragment=parsed_url.fragment,
     )
 
