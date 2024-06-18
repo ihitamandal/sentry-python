@@ -1451,42 +1451,35 @@ def sanitize_url(url, remove_authority=True, remove_query_values=True, split=Fal
     Removes the authority and query parameter values from a given URL.
     """
     parsed_url = urlsplit(url)
-    query_params = parse_qs(parsed_url.query, keep_blank_values=True)
 
-    # strip username:password (netloc can be usr:pwd@example.com)
+    # construct the new netloc if remove_authority is True
+    netloc = parsed_url.netloc
     if remove_authority:
-        netloc_parts = parsed_url.netloc.split("@")
-        if len(netloc_parts) > 1:
-            netloc = "%s:%s@%s" % (
-                SENSITIVE_DATA_SUBSTITUTE,
-                SENSITIVE_DATA_SUBSTITUTE,
-                netloc_parts[-1],
-            )
-        else:
-            netloc = parsed_url.netloc
-    else:
-        netloc = parsed_url.netloc
+        at_sign_index = netloc.find("@")
+        if at_sign_index != -1:
+            netloc = f"{SENSITIVE_DATA_SUBSTITUTE}:{SENSITIVE_DATA_SUBSTITUTE}@{netloc[at_sign_index+1:]}"
 
-    # strip values from query string
+    # construct the new query string if remove_query_values is True
+    query_string = parsed_url.query
     if remove_query_values:
         query_string = unquote(
-            urlencode({key: SENSITIVE_DATA_SUBSTITUTE for key in query_params})
+            urlencode(
+                {
+                    key: SENSITIVE_DATA_SUBSTITUTE
+                    for key in parse_qs(parsed_url.query, keep_blank_values=True)
+                }
+            )
         )
-    else:
-        query_string = parsed_url.query
 
     components = Components(
         scheme=parsed_url.scheme,
         netloc=netloc,
-        query=query_string,
         path=parsed_url.path,
+        query=query_string,
         fragment=parsed_url.fragment,
     )
 
-    if split:
-        return components
-    else:
-        return urlunsplit(components)
+    return components if split else urlunsplit(components)
 
 
 ParsedUrl = namedtuple("ParsedUrl", ["url", "query", "fragment"])
@@ -1496,7 +1489,7 @@ def parse_url(url, sanitize=True):
     # type: (str, bool) -> ParsedUrl
     """
     Splits a URL into a url (including path), query and fragment. If sanitize is True, the query
-    parameters will be sanitized to remove sensitive data. The autority (username and password)
+    parameters will be sanitized to remove sensitive data. The authority (username and password)
     in the URL will always be removed.
     """
     parsed_url = sanitize_url(
@@ -1505,18 +1498,18 @@ def parse_url(url, sanitize=True):
 
     base_url = urlunsplit(
         Components(
-            scheme=parsed_url.scheme,  # type: ignore
-            netloc=parsed_url.netloc,  # type: ignore
+            scheme=parsed_url.scheme,
+            netloc=parsed_url.netloc,
+            path=parsed_url.path,
             query="",
-            path=parsed_url.path,  # type: ignore
             fragment="",
         )
     )
 
     return ParsedUrl(
         url=base_url,
-        query=parsed_url.query,  # type: ignore
-        fragment=parsed_url.fragment,  # type: ignore
+        query=parsed_url.query,
+        fragment=parsed_url.fragment,
     )
 
 
