@@ -1082,9 +1082,19 @@ def _truncate_by_bytes(string, max_bytes):
     """
     Truncate a UTF-8-encodable string to the last full codepoint so that it fits in max_bytes.
     """
-    truncated = string.encode("utf-8")[: max_bytes - 3].decode("utf-8", errors="ignore")
+    utf8_bytes = string.encode("utf-8")
+    if len(utf8_bytes) <= (max_bytes - 3):
+        return string + "..."
 
-    return truncated + "..."
+    truncated_bytes = utf8_bytes[: max_bytes - 3]
+    while True:
+        try:
+            truncated_str = truncated_bytes.decode("utf-8")
+            break
+        except UnicodeDecodeError:
+            truncated_bytes = truncated_bytes[:-1]
+
+    return truncated_str + "..."
 
 
 def _get_size_in_bytes(value):
