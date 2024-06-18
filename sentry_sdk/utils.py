@@ -14,7 +14,7 @@ from collections import namedtuple
 from copy import copy
 from datetime import datetime
 from decimal import Decimal
-from functools import partial, partialmethod, wraps
+from functools import lru_cache, partial, partialmethod, wraps
 from numbers import Real
 from urllib.parse import parse_qs, unquote, urlencode, urlsplit, urlunsplit
 
@@ -371,6 +371,7 @@ class AnnotatedValue:
         return self.value == other.value and self.metadata == other.metadata
 
     @classmethod
+    @lru_cache(None)
     def removed_because_raw_data(cls):
         # type: () -> AnnotatedValue
         """The value was removed because it could not be parsed. This is done for request body values that are not json nor a form."""
@@ -403,6 +404,40 @@ class AnnotatedValue:
         )
 
     @classmethod
+    def substituted_because_contains_sensitive_data(cls):
+        # type: () -> AnnotatedValue
+        """The actual value was removed because it contained sensitive information."""
+        return AnnotatedValue(
+            value=SENSITIVE_DATA_SUBSTITUTE,
+            metadata={
+                "rem": [  # Remark
+                    [
+                        "!config",  # Because of SDK configuration (in this case the config is the hard coded removal of certain django cookies)
+                        "s",  # The fields original value was substituted
+                    ]
+                ]
+            },
+        )
+
+    @classmethod
+    @lru_cache(None)
+    def removed_because_over_size_limit(cls):
+        # type: () -> AnnotatedValue
+        """The actual value was removed because the size of the field exceeded the configured maximum size (specified with the max_request_body_size sdk option)"""
+        return AnnotatedValue(
+            value="",
+            metadata={
+                "rem": [  # Remark
+                    [
+                        "!config",  # Because of configured maximum size
+                        "x",  # The fields original value was removed
+                    ]
+                ]
+            },
+        )
+
+    @classmethod
+    @lru_cache(None)
     def substituted_because_contains_sensitive_data(cls):
         # type: () -> AnnotatedValue
         """The actual value was removed because it contained sensitive information."""
