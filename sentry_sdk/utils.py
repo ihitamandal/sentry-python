@@ -560,22 +560,26 @@ def filename_for_module(module, abs_path):
     if not abs_path or not module:
         return abs_path
 
+    if abs_path.endswith(".pyc"):
+        abs_path = abs_path[:-1]
+
+    base_module = module.partition(".")[0]
+
+    if base_module == module:
+        return os.path.basename(abs_path)
+
+    module_info = sys.modules.get(base_module)
+    if not module_info or not hasattr(module_info, "__file__"):
+        return abs_path
+
+    base_module_path = module_info.__file__
+    if not base_module_path:
+        return abs_path
+
     try:
-        if abs_path.endswith(".pyc"):
-            abs_path = abs_path[:-1]
-
-        base_module = module.split(".", 1)[0]
-        if base_module == module:
-            return os.path.basename(abs_path)
-
-        base_module_path = sys.modules[base_module].__file__
-        if not base_module_path:
-            return abs_path
-
-        return abs_path.split(base_module_path.rsplit(os.sep, 2)[0], 1)[-1].lstrip(
-            os.sep
-        )
-    except Exception:
+        base_path = base_module_path.rsplit(os.sep, 2)[0]
+        return abs_path.split(base_path, 1)[-1].lstrip(os.sep)
+    except IndexError:
         return abs_path
 
 
