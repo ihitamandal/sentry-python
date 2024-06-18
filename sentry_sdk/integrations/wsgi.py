@@ -158,15 +158,11 @@ def get_client_ip(environ):
     security sensitive situations since the value may be forged from a client,
     but it's good enough for the event payload.
     """
-    try:
+    if "HTTP_X_FORWARDED_FOR" in environ:
         return environ["HTTP_X_FORWARDED_FOR"].split(",")[0].strip()
-    except (KeyError, IndexError):
-        pass
 
-    try:
+    if "HTTP_X_REAL_IP" in environ:
         return environ["HTTP_X_REAL_IP"]
-    except KeyError:
-        pass
 
     return environ.get("REMOTE_ADDR")
 
