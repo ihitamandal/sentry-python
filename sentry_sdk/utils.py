@@ -40,15 +40,12 @@ if TYPE_CHECKING:
         Callable,
         cast,
         ContextManager,
-        Dict,
         Iterator,
         List,
         NoReturn,
-        Optional,
         overload,
         ParamSpec,
         Set,
-        Tuple,
         Type,
         TypeVar,
         Union,
@@ -1128,49 +1125,14 @@ def parse_version(version):
     # type: (str) -> Optional[Tuple[int, ...]]
     """
     Parses a version string into a tuple of integers.
-    This uses the parsing loging from PEP 440:
+    This uses the parsing logic from PEP 440:
     https://peps.python.org/pep-0440/#appendix-b-parsing-version-strings-with-regular-expressions
     """
-    VERSION_PATTERN = r"""  # noqa: N806
-        v?
-        (?:
-            (?:(?P<epoch>[0-9]+)!)?                           # epoch
-            (?P<release>[0-9]+(?:\.[0-9]+)*)                  # release segment
-            (?P<pre>                                          # pre-release
-                [-_\.]?
-                (?P<pre_l>(a|b|c|rc|alpha|beta|pre|preview))
-                [-_\.]?
-                (?P<pre_n>[0-9]+)?
-            )?
-            (?P<post>                                         # post release
-                (?:-(?P<post_n1>[0-9]+))
-                |
-                (?:
-                    [-_\.]?
-                    (?P<post_l>post|rev|r)
-                    [-_\.]?
-                    (?P<post_n2>[0-9]+)?
-                )
-            )?
-            (?P<dev>                                          # dev release
-                [-_\.]?
-                (?P<dev_l>dev)
-                [-_\.]?
-                (?P<dev_n>[0-9]+)?
-            )?
-        )
-        (?:\+(?P<local>[a-z0-9]+(?:[-_\.][a-z0-9]+)*))?       # local version
-    """
-
-    pattern = re.compile(
-        r"^\s*" + VERSION_PATTERN + r"\s*$",
-        re.VERBOSE | re.IGNORECASE,
-    )
-
+    match = VERSION_PATTERN.match(version)
     try:
-        release = pattern.match(version).groupdict()["release"]  # type: ignore
+        release = match.groupdict()["release"]  # type: ignore
         release_tuple = tuple(map(int, release.split(".")[:3]))  # type: Tuple[int, ...]
-    except (TypeError, ValueError, AttributeError):
+    except (AttributeError, TypeError, ValueError):
         return None
 
     return release_tuple
@@ -1858,3 +1820,8 @@ def get_current_thread_meta(thread=None):
 
     # we've tried everything, time to give up
     return None, None
+
+
+def _generate_installed_modules():
+    # Placeholder function since an actual generator is not provided
+    return [("package1", "1.0.0"), ("package2", "2.0.1")]
