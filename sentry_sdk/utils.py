@@ -268,11 +268,10 @@ class Dsn:
 
     @property
     def netloc(self):
-        # type: () -> str
         """The netloc part of a DSN."""
         rv = self.host
         if (self.scheme, self.port) not in (("http", 80), ("https", 443)):
-            rv = "%s:%s" % (rv, self.port)
+            rv = f"{rv}:{self.port}"
         return rv
 
     def to_auth(self, client=None):
@@ -1568,7 +1567,6 @@ def match_regex_list(item, regex_list=None, substring_matching=False):
 
 
 def is_sentry_url(client, url):
-    # type: (sentry_sdk.client.BaseClient, str) -> bool
     """
     Determines whether the given URL matches the Sentry DSN.
     """
