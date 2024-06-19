@@ -1521,30 +1521,29 @@ def parse_url(url, sanitize=True):
 
 
 def is_valid_sample_rate(rate, source):
-    # type: (Any, str) -> bool
     """
     Checks the given sample rate to make sure it is valid type and value (a
     boolean or a number between 0 and 1, inclusive).
     """
 
-    # both booleans and NaN are instances of Real, so a) checking for Real
-    # checks for the possibility of a boolean also, and b) we have to check
-    # separately for NaN and Decimal does not derive from Real so need to check that too
-    if not isinstance(rate, (Real, Decimal)) or math.isnan(rate):
-        logger.warning(
-            "{source} Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got {rate} of type {type}.".format(
-                source=source, rate=rate, type=type(rate)
+    if not isinstance(rate, (Real, Decimal)):
+        if (
+            not isinstance(rate, (bool, int, float, Decimal))
+            or isinstance(rate, bool)
+            and not isinstance(rate, Real)
+        ):
+            logger.warning(
+                "%s Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got %s of type %s.",
+                source,
+                rate,
+                type(rate),
             )
-        )
-        return False
-
-    # in case rate is a boolean, it will get cast to 1 if it's True and 0 if it's False
-    rate = float(rate)
-    if rate < 0 or rate > 1:
+            return False
+    elif math.isnan(rate) or not (0 <= float(rate) <= 1):
         logger.warning(
-            "{source} Given sample rate is invalid. Sample rate must be between 0 and 1. Got {rate}.".format(
-                source=source, rate=rate
-            )
+            "%s Given sample rate is invalid. Sample rate must be between 0 and 1. Got %s.",
+            source,
+            rate,
         )
         return False
 
