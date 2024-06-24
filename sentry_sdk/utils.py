@@ -1087,14 +1087,7 @@ def _truncate_by_bytes(string, max_bytes):
         return string + "..."
 
     truncated_bytes = utf8_bytes[: max_bytes - 3]
-    while True:
-        try:
-            truncated_str = truncated_bytes.decode("utf-8")
-            break
-        except UnicodeDecodeError:
-            truncated_bytes = truncated_bytes[:-1]
-
-    return truncated_str + "..."
+    return truncated_bytes.decode("utf-8", errors="ignore") + "..."
 
 
 def _get_size_in_bytes(value):
