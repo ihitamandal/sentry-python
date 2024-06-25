@@ -928,15 +928,16 @@ def to_string(value):
 
 
 def iter_event_stacktraces(event):
-    # type: (Event) -> Iterator[Dict[str, Any]]
     if "stacktrace" in event:
         yield event["stacktrace"]
-    if "threads" in event:
-        for thread in event["threads"].get("values") or ():
+    threads = event.get("threads")
+    if threads:
+        for thread in threads.get("values") or ():
             if "stacktrace" in thread:
                 yield thread["stacktrace"]
-    if "exception" in event:
-        for exception in event["exception"].get("values") or ():
+    exceptions = event.get("exception")
+    if exceptions:
+        for exception in exceptions.get("values") or ():
             if "stacktrace" in exception:
                 yield exception["stacktrace"]
 
@@ -949,42 +950,41 @@ def iter_event_frames(event):
 
 
 def handle_in_app(event, in_app_exclude=None, in_app_include=None, project_root=None):
-    # type: (Event, Optional[List[str]], Optional[List[str]], Optional[str]) -> Event
     for stacktrace in iter_event_stacktraces(event):
-        set_in_app_in_frames(
-            stacktrace.get("frames"),
-            in_app_exclude=in_app_exclude,
-            in_app_include=in_app_include,
-            project_root=project_root,
-        )
+        frames = stacktrace.get("frames")
+        if frames:
+            set_in_app_in_frames(
+                frames,
+                in_app_exclude=in_app_exclude,
+                in_app_include=in_app_include,
+                project_root=project_root,
+            )
 
     return event
 
 
 def set_in_app_in_frames(frames, in_app_exclude, in_app_include, project_root=None):
-    # type: (Any, Optional[List[str]], Optional[List[str]], Optional[str]) -> Optional[Any]
     if not frames:
         return None
 
+    in_app_include_set = set(in_app_include or [])
+    in_app_exclude_set = set(in_app_exclude or [])
+
     for frame in frames:
-        # if frame has already been marked as in_app, skip it
         current_in_app = frame.get("in_app")
         if current_in_app is not None:
             continue
 
         module = frame.get("module")
 
-        # check if module in frame is in the list of modules to include
-        if _module_in_list(module, in_app_include):
+        if module in in_app_include_set:
             frame["in_app"] = True
             continue
 
-        # check if module in frame is in the list of modules to exclude
-        if _module_in_list(module, in_app_exclude):
+        if module in in_app_exclude_set:
             frame["in_app"] = False
             continue
 
-        # if frame has no abs_path, skip further checks
         abs_path = frame.get("abs_path")
         if abs_path is None:
             continue
@@ -993,7 +993,7 @@ def set_in_app_in_frames(frames, in_app_exclude, in_app_include, project_root=No
             frame["in_app"] = False
             continue
 
-        if _is_in_project_root(abs_path, project_root):
+        if project_root and abs_path.startswith(project_root):
             frame["in_app"] = True
             continue
 
@@ -1862,3 +1862,55 @@ def get_current_thread_meta(thread=None):
 
     # we've tried everything, time to give up
     return None, None
+
+
+def iter_event_stacktraces(event):
+    if "stacktrace" in event:
+        yield event["stacktrace"]
+    threads = event.get("threads")
+    if threads:
+        for thread in threads.get("values") or ():
+            if "stacktrace" in thread:
+                yield thread["stacktrace"]
+    exceptions = event.get("exception")
+    if exceptions:
+        for exception in exceptions.get("values") or ():
+            if "stacktrace" in exception:
+                yield exception["stacktrace"]
+
+
+def set_in_app_in_frames(frames, in_app_exclude, in_app_include, project_root=None):
+    if not frames:
+        return None
+
+    in_app_include_set = set(in_app_include or [])
+    in_app_exclude_set = set(in_app_exclude or [])
+
+    for frame in frames:
+        current_in_app = frame.get("in_app")
+        if current_in_app is not None:
+            continue
+
+        module = frame.get("module")
+
+        if module in in_app_include_set:
+            frame["in_app"] = True
+            continue
+
+        if module in in_app_exclude_set:
+            frame["in_app"] = False
+            continue
+
+        abs_path = frame.get("abs_path")
+        if abs_path is None:
+            continue
+
+        if _is_external_source(abs_path):
+            frame["in_app"] = False
+            continue
+
+        if project_root and abs_path.startswith(project_root):
+            frame["in_app"] = True
+            continue
+
+    return frames
