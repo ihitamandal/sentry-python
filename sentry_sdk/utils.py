@@ -962,29 +962,25 @@ def handle_in_app(event, in_app_exclude=None, in_app_include=None, project_root=
 
 
 def set_in_app_in_frames(frames, in_app_exclude, in_app_include, project_root=None):
-    # type: (Any, Optional[List[str]], Optional[List[str]], Optional[str]) -> Optional[Any]
     if not frames:
         return None
 
+    in_app_include = set(in_app_include or [])
+    in_app_exclude = set(in_app_exclude or [])
+
     for frame in frames:
-        # if frame has already been marked as in_app, skip it
-        current_in_app = frame.get("in_app")
-        if current_in_app is not None:
+        if frame.get("in_app") is not None:
             continue
 
         module = frame.get("module")
-
-        # check if module in frame is in the list of modules to include
         if _module_in_list(module, in_app_include):
             frame["in_app"] = True
             continue
 
-        # check if module in frame is in the list of modules to exclude
         if _module_in_list(module, in_app_exclude):
             frame["in_app"] = False
             continue
 
-        # if frame has no abs_path, skip further checks
         abs_path = frame.get("abs_path")
         if abs_path is None:
             continue
@@ -995,7 +991,6 @@ def set_in_app_in_frames(frames, in_app_exclude, in_app_include, project_root=No
 
         if _is_in_project_root(abs_path, project_root):
             frame["in_app"] = True
-            continue
 
     return frames
 
@@ -1044,39 +1039,26 @@ def event_from_exception(
 
 
 def _module_in_list(name, items):
-    # type: (str, Optional[List[str]]) -> bool
-    if name is None:
-        return False
-
-    if not items:
+    if name is None or not items:
         return False
 
     for item in items:
         if item == name or name.startswith(item + "."):
             return True
-
     return False
 
 
 def _is_external_source(abs_path):
-    # type: (str) -> bool
-    # check if frame is in 'site-packages' or 'dist-packages'
-    external_source = (
-        re.search(r"[\\/](?:dist|site)-packages[\\/]", abs_path) is not None
+    return (
+        "\\site-packages\\" in abs_path
+        or "\\dist-packages\\" in abs_path
+        or "/site-packages/" in abs_path
+        or "/dist-packages/" in abs_path
     )
-    return external_source
 
 
 def _is_in_project_root(abs_path, project_root):
-    # type: (str, Optional[str]) -> bool
-    if project_root is None:
-        return False
-
-    # check if path is in the project root
-    if abs_path.startswith(project_root):
-        return True
-
-    return False
+    return project_root is not None and abs_path.startswith(project_root)
 
 
 def _truncate_by_bytes(string, max_bytes):
